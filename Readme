@@ -226,7 +226,17 @@ Condition name and source value
 Condition start date (ordered from latest to oldest)
 
 
+###Troubleshooting: payer_plan_period_start_date Error
+During the final ETL load process (LoadEventTables()), an error was encountered while inserting records into the payer_plan_period table:
 
+ERROR: null value in column "payer_plan_period_start_date" of relation "payer_plan_period" violates not-null constraint
+Detail: Failing row contains (1, 1, null, null, ...)
+Cause:
+The source data in native.payer_transitions was missing values for:
+start_date
+end_date
+
+These are required fields when inserting into OMOP's payer_plan_period table, which enforces NOT NULL constraints on the date columns.
 
 
 
