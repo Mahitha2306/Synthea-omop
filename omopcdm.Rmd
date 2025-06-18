@@ -1,0 +1,64 @@
+
+
+```{r}
+library(DatabaseConnector)
+
+jdbc_driver_path <- "/Users/babburisoumith/desktop/jdbc_drivers"
+
+# Your database connection details
+cd <- DatabaseConnector::createConnectionDetails(
+    dbms = "postgresql",
+    server = "localhost/omop_cdm",
+    user = "omop_user",
+    password = "Mahi@2306",
+    port = 5432,
+    pathToDriver = jdbc_driver_path
+)
+cdmSchema      <- "cdm_synthea"
+cdmVersion     <- "5.4"
+syntheaVersion <- "3.0.0"
+syntheaSchema  <- "native"
+syntheaFileLoc <- "/Users/babburisoumith/Desktop/synthea/output/csv"
+vocabFileLoc   <- "/Users/babburisoumith/Desktop/Vocabulary"
+
+
+```
+
+```{r}
+library(ETLSyntheaBuilder)
+ETLSyntheaBuilder::CreateCDMTables(connectionDetails = cd, cdmSchema = cdmSchema, cdmVersion = cdmVersion)
+ETLSyntheaBuilder::CreateSyntheaTables(connectionDetails = cd, syntheaSchema = syntheaSchema, syntheaVersion = syntheaVersion)
+
+```
+
+```{r}
+ETLSyntheaBuilder::LoadSyntheaTables(connectionDetails = cd, syntheaSchema = syntheaSchema, syntheaFileLoc = syntheaFileLoc)
+
+```
+
+
+```{r}
+ETLSyntheaBuilder::LoadVocabFromCsv(connectionDetails = cd, cdmSchema = cdmSchema, vocabFileLoc = vocabFileLoc)
+
+```
+
+
+```{r}
+ETLSyntheaBuilder::CreateMapAndRollupTables(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, cdmVersion = cdmVersion, syntheaVersion = syntheaVersion)
+
+```
+
+
+
+```{r}
+
+ETLSyntheaBuilder::CreateExtraIndices(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, syntheaVersion = syntheaVersion)
+
+```
+
+
+```{r}
+
+ETLSyntheaBuilder::LoadEventTables(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, cdmVersion = cdmVersion, syntheaVersion = syntheaVersion)
+```
+
