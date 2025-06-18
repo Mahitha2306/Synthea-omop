@@ -1,10 +1,10 @@
-# 🧪 Synthea to OMOP CDM ETL Pipeline
+# Synthea to OMOP CDM ETL Pipeline
 
 This repository contains the full workflow to generate synthetic patient data using [Synthea](https://github.com/synthetichealth/synthea), transform it into the [OMOP Common Data Model (CDM)](https://www.ohdsi.org/data-standardization/the-common-data-model/), and perform validation through SQL queries. This setup is tested on **macOS**.
 
 ---
 
-## 📌 Overview
+##Overview
 
 This project involves:
 - Generating synthetic patient data (1000 records)
@@ -13,9 +13,7 @@ This project involves:
 - Storing data in PostgreSQL using OMOP CDM v5.4
 - Executing SQL queries to verify transformation
 
----
-
-## 🛠️ Tools & Technologies
+## Tools & Technologies
 
 - macOS Terminal
 - Java (OpenJDK)
@@ -27,11 +25,10 @@ This project involves:
 - OMOP Vocabulary from Athena
 - SQL (via pgAdmin or psql)
 
----
 
-## 🔧 Step-by-Step Setup Guide
+## Step-by-Step Setup Guide
 
-### 1. ✅ Install Java
+### 1.Install Java
 brew install openjdk
 ###Downlaod Synthea
 git clone https://github.com/synthetichealth/synthea.git
