@@ -32,7 +32,6 @@ This project involves:
 ## 🔧 Step-by-Step Setup Guide
 
 ### 1. ✅ Install Java
-```bash
 brew install openjdk
 ###Downlaod Synthea
 git clone https://github.com/synthetichealth/synthea.git
@@ -66,8 +65,7 @@ Create the user
 CREATE USER omop_user WITH PASSWORD 'Mahi@2306';
 5. Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE omop_cdm TO omop_user;
-6. To quit sql 
-type - \q
+6. To quit sql: \q
 
 ##Create Schemas Inside the Database
 1. connect to the newly created database:
@@ -230,7 +228,7 @@ Condition start date (ordered from latest to oldest)
 During the final ETL load process (LoadEventTables()), an error was encountered while inserting records into the payer_plan_period table:
 
 ERROR: null value in column "payer_plan_period_start_date" of relation "payer_plan_period" violates not-null constraint
-Detail: Failing row contains (1, 1, null, null, ...)
+Detail: Failing row contains (1, 1, null, null.)
 Cause:
 The source data in native.payer_transitions was missing values for:
 start_date
