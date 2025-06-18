@@ -1,0 +1,234 @@
+# 🧪 Synthea to OMOP CDM ETL Pipeline
+
+This repository contains the full workflow to generate synthetic patient data using [Synthea](https://github.com/synthetichealth/synthea), transform it into the [OMOP Common Data Model (CDM)](https://www.ohdsi.org/data-standardization/the-common-data-model/), and perform validation through SQL queries. This setup is tested on **macOS**.
+
+---
+
+## 📌 Overview
+
+This project involves:
+- Generating synthetic patient data (1000 records)
+- Loading OMOP standard vocabularies from Athena
+- Running ETL using R (`ETLSyntheaBuilder`)
+- Storing data in PostgreSQL using OMOP CDM v5.4
+- Executing SQL queries to verify transformation
+
+---
+
+## 🛠️ Tools & Technologies
+
+- macOS Terminal
+- Java (OpenJDK)
+- PostgreSQL
+- R & RStudio
+- Synthea
+- OMOP CDM v5.4
+- ETLSyntheaBuilder R package
+- OMOP Vocabulary from Athena
+- SQL (via pgAdmin or psql)
+
+---
+
+## 🔧 Step-by-Step Setup Guide
+
+### 1. ✅ Install Java
+```bash
+brew install openjdk
+###Downlaod Synthea
+git clone https://github.com/synthetichealth/synthea.git
+cd synthea
+
+### Edit the config file
+open src/main/resources/synthea.properties
+exporter.csv.export = true
+exporter.baseDirectory = output
+###run synthea
+./run_synthea -p 1000
+
+###Install R + Required Packages
+Open RStudio or R console and run
+install.packages("devtools")
+devtools::install_github("OHDSI/ETL-Synthea")
+
+ ###Download OMOP Vocabulary
+Go to https://athena.ohdsi.org/
+Log in and download the vocabulary files
+Extract them to a folder like: /Users/yourname/Desktop/Vocabulary
+It must include files like: CONCEPT.csv, CONCEPT_RELATIONSHIP.csv, DRUG_STRENGTH.csv etc.
+
+###Set Up PostgreSQL Database (if not done)
+1. Make sure you’ve: Installed PostgreSQL (brew install postgresql)
+2. Create the database: createdb omop_cdm(can choose ur own name)
+3. Open PostgreSQL Shell
+    run - psql postgres
+4. Once youre in the shell, run the following SQL:
+Create the user
+CREATE USER omop_user WITH PASSWORD 'Mahi@2306';
+5. Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE omop_cdm TO omop_user;
+6. To quit sql 
+type - \q
+
+##Create Schemas Inside the Database
+1. connect to the newly created database:
+    psql -d omop_cdm -U omop_user (run it in the terminal)
+2. Once inside the omop_cdm database:
+    CREATE SCHEMA cdm_synthea;
+    CREATE SCHEMA native;
+
+###DBC Driver Setup (Required for R ↔ PostgreSQL)
+To enable R to connect to your PostgreSQL database, you must download and configure the JDBC driver.
+
+1. Download PostgreSQL JDBC Driver
+Go to: https://jdbc.postgresql.org/download.html
+Download the latest .jar file (e.g., postgresql-42.7.2.jar)
+
+2. Create a Local Driver Folder
+On your system, create a folder to store the driver:
+/Users/computer_name/desktop/jdbc_drivers
+
+##Define ETL Configuration in R
+In your R script, set the required connection and path details for ETL.
+library(DatabaseConnector)
+
+jdbc_driver_path <- "/Users/computer_name/desktop/jdbc_drivers"
+
+# Your database connection details
+cd <- DatabaseConnector::createConnectionDetails(
+    dbms = "postgresql",
+    server = "localhost/omop_cdm",
+    user = "omop_user",
+    password = "Mahi@2306",
+    port = 5432,
+    pathToDriver = jdbc_driver_path # This points to the folder containing the .jar
+)
+cdmSchema      <- "cdm_synthea"
+cdmVersion     <- "5.4"
+syntheaVersion <- "3.0.0"
+syntheaSchema  <- "native"
+syntheaFileLoc <- "/Users/bcomputer_name/Desktop/synthea/output/csv"
+vocabFileLoc   <- "/Users/computer_name/Desktop/Vocabulary"
+
+###Create CDM and Synthea Tables in PostgreSQL
+After setting up your connection and paths, use the following functions to create empty OMOP CDM tables and Synthea staging tables in your PostgreSQL database:
+library(ETLSyntheaBuilder)
+ETLSyntheaBuilder::CreateCDMTables(connectionDetails = cd, cdmSchema = cdmSchema, cdmVersion = cdmVersion)
+ETLSyntheaBuilder::CreateSyntheaTables(connectionDetails = cd, syntheaSchema = syntheaSchema, syntheaVersion = syntheaVersion)
+
+###Load Synthea CSV Data into Raw Tables
+After creating the schemas and tables, load the Synthea-generated CSV files into the native schema:
+ETLSyntheaBuilder::LoadSyntheaTables(connectionDetails = cd, syntheaSchema = syntheaSchema, syntheaFileLoc = syntheaFileLoc)
+
+###Troubleshooting: Column Mismatches
+To resolve column mismatch or missing column errors during LoadSyntheaTables(), the following manual schema modifications were applied to the native tables before loading:
+1. CONDITIONS
+ALTER TABLE native.conditions ADD COLUMN system TEXT;
+2. PATIENTS
+ALTER TABLE native.patients ADD COLUMN middle TEXT;
+ALTER TABLE native.patients ADD COLUMN fips INTEGER;
+ALTER TABLE native.patients ADD COLUMN income INTEGER;
+3. PAYER_TRANSITIONS
+ALTER TABLE native.payer_transitions ADD COLUMN start_date DATE;
+ALTER TABLE native.payer_transitions ADD COLUMN end_date DATE;
+ALTER TABLE native.payer_transitions ADD COLUMN plan_ownership TEXT;
+ALTER TABLE native.payer_transitions ADD COLUMN owner_name TEXT;
+4. PAYERS
+ALTER TABLE native.payers ADD COLUMN ownership TEXT;
+5. PROCEDURES
+ALTER TABLE native.procedures ADD COLUMN system TEXT;
+6. PROVIDERS
+ALTER TABLE native.providers ADD COLUMN encounters INTEGER;
+ALTER TABLE native.providers ADD COLUMN procedures INTEGER;
+These columns were either:
+Present in your Synthea CSVs but missing in the default table definitions
+Result: All CSV files successfully loaded after applying these fixes.
+
+##Load OMOP Vocabulary Files
+Before running the main ETL transformation, the OMOP standard vocabulary files must be loaded into the target cdm_synthea schema.
+ETLSyntheaBuilder::LoadVocabFromCsv(connectionDetails = cd, cdmSchema = cdmSchema, vocabFileLoc = vocabFileLoc)
+
+This command loads the following vocabulary files into the OMOP CDM schema:
+CONCEPT.csv
+CONCEPT_RELATIONSHIP.csv
+CONCEPT_ANCESTOR.csv
+CONCEPT_SYNONYM.csv
+DRUG_STRENGTH.csv
+RELATIONSHIP.csv
+DOMAIN.csv
+VOCABULARY.csv
+
+These vocabularies are required to:
+Map Synthea source codes to OMOP standard concepts
+Enable joins to tables like concept, domain, and relationship.
+
+###Create Mapping and Rollup Tables
+After loading the vocabularies and Synthea source data, run the following to prepare intermediate mapping and aggregation tables:
+ETLSyntheaBuilder::CreateMapAndRollupTables(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, cdmVersion = cdmVersion, syntheaVersion = syntheaVersion)
+
+This function performs the following:
+Generates standard-to-standard and source-to-standard mapping tables
+Creates necessary rollup tables like:
+AllVisitTable
+AAVITable
+final_visit_ids
+Applies state-level mappings (via create_states_map.sql)
+These mapping tables are required to: Translate Synthea's source codes and visits into OMOP concepts
+Ensure visit-related data (e.g., admissions, discharges, encounters) is linked correctly
+
+###Create Extra Indices for Performance
+To improve query performance and speed up data transformation and analysis, run the following function to create additional indices on key columns:
+ETLSyntheaBuilder::CreateExtraIndices(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, syntheaVersion = syntheaVersion)
+
+This step:
+Adds indexes to high-volume OMOP tables like condition_occurrence, drug_exposure, observation, visit_occurrence, etc.
+Optimizes joins and filtering operations during the final ETL run and for future SQL queries
+Is optional but highly recommended for medium-to-large synthetic datasets
+This step does not change any data, only improves performance.
+
+
+###Load Clinical Event Tables into OMOP CDM
+Once the raw data is loaded, vocabularies are mapped, and indices are created, run the following command to populate the actual OMOP CDM tables:
+ETLSyntheaBuilder::LoadEventTables(connectionDetails = cd, cdmSchema = cdmSchema, syntheaSchema = syntheaSchema, cdmVersion = cdmVersion, syntheaVersion = syntheaVersion)
+
+This function:
+Loads structured event-level data (conditions, observations, procedures, drugs, etc.) from the native schema
+Applies concept mapping and inserts them into OMOP CDM tables in cdm_synthea.
+
+###Validation – Example Patient Condition Query
+After completing the ETL, run the following query to validate your OMOP data and explore the first 50 patient conditions, sorted by condition start date:
+
+SELECT
+  p.person_id,
+  p.year_of_birth,
+  g.concept_name AS gender,
+  c.condition_start_date,
+  c.condition_source_value,
+  cond_concept.concept_name AS condition_name
+FROM
+  cdm_synthea.person p
+JOIN
+  cdm_synthea.condition_occurrence c
+    ON p.person_id = c.person_id
+LEFT JOIN
+  cdm_synthea.concept g
+    ON p.gender_concept_id = g.concept_id
+LEFT JOIN
+  cdm_synthea.concept cond_concept
+    ON c.condition_concept_id = cond_concept.concept_id
+ORDER BY
+  c.condition_start_date DESC
+LIMIT 50;
+
+What this shows:
+Each patient’s ID and birth year
+Gender name (mapped via concept table)
+Condition name and source value
+Condition start date (ordered from latest to oldest)
+
+
+
+
+
+
+
+
