@@ -1,0 +1,54 @@
+```{r}
+install.packages("devtools")
+devtools::install_github("OHDSI/ETL-Synthea")
+
+```
+
+```{r}
+library(DatabaseConnector)
+
+# REPLACE THIS with the exact output from 'pwd -P ~/jdbc_drivers/postgresql/'
+jdbc_driver_path <- "/Users/babburisoumith/desktop/jdbc_drivers" # <--- UPDATE THIS LINE WITH YOUR ACTUAL ABSOLUTE PATH
+
+# Your database connection details
+cd <- DatabaseConnector::createConnectionDetails(
+    dbms = "postgresql",
+    server = "localhost/omop_cdm",
+    user = "omop_user",
+    password = "Mahi@2306", # Your omop_user password
+    port = 5432,
+    pathToDriver = jdbc_driver_path # This points to the folder containing the .jar
+)
+
+
+conn <- connect(cd)
+
+executeSql(conn, "DROP SCHEMA IF EXISTS cdm_synthea CASCADE;")
+executeSql(conn, "DROP SCHEMA IF EXISTS native CASCADE;")
+
+executeSql(conn, "CREATE SCHEMA cdm_synthea;")
+executeSql(conn, "CREATE SCHEMA native;")
+
+disconnect(conn)
+
+```
+```{r}
+library(ETLSyntheaBuilder)
+
+cdmSchema <- "cdm_synthea"
+syntheaSchema <- "native"
+cdmVersion <- "5.4"
+syntheaVersion <- "2.7.0"
+
+syntheaFileLoc <- "/Users/babburisoumith/Desktop/synthea/output/csv"
+vocabFileLoc   <- "/Users/babburisoumith/Desktop/Vocabulary"
+
+```
+
+```{r}
+CreateCDMTables(connectionDetails = cd, cdmSchema = cdmSchema, cdmVersion = cdmVersion)
+
+CreateSyntheaTables(connectionDetails = cd, syntheaSchema = syntheaSchema, syntheaVersion = syntheaVersion)
+
+```
+
